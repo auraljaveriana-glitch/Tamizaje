@@ -370,15 +370,15 @@
     <section class="step" data-step="tones">
       <div class="eyebrow">Parte 2 · Prueba de tonos</div>
       <h2>Sonidos por oído</h2>
-      <p class="lead">Vas a escuchar tonos breves. Presiona reproducir y responde si lo escuchaste, aunque sea débil.</p>
+      <p class="lead">Vas a escuchar tonos breves. Primero uno suave — si no lo escuchas, se reproduce uno más fuerte en la misma frecuencia y oído. Presiona reproducir y responde con honestidad.</p>
 
       <div class="headphone-note">
         <span>🎧</span>
-        <span><strong>Ponte tus audífonos antes de continuar.</strong> Cada tono se envía a un solo oído — sin audífonos no vas a poder distinguirlos bien y el resultado no será confiable.</span>
+        <span><strong>Ponte tus audífonos y sube el volumen de tu dispositivo al máximo antes de continuar.</strong> Cada tono se envía a un solo oído — sin audífonos no vas a poder distinguirlos bien — y se prueban dos niveles de sonido (uno suave y uno más fuerte) que solo son comparables entre personas si el volumen del dispositivo está al tope. Estos niveles son aproximados, no una medición clínica calibrada. Si algún sonido se siente incómodo o demasiado fuerte, baja el volumen de tu dispositivo antes de seguir.</span>
       </div>
       <label class="check">
         <input type="checkbox" id="chkHeadphones">
-        Ya tengo mis audífonos puestos
+        Ya tengo mis audífonos puestos y el volumen al máximo
       </label>
 
       <div class="tone-stage">
@@ -408,6 +408,7 @@
         <div class="score-tile">
           <div class="n mono" id="toneScoreN"></div>
           <div class="l">Tonos no percibidos (de 8)</div>
+          <div class="l" id="toneLoudNote" style="margin-top:2px;"></div>
         </div>
       </div>
 
@@ -478,12 +479,23 @@
     TONE_FREQS.forEach(function(f){ TONE_TRIALS.push({ear:ear, freq:f}); });
   });
 
+  // Two relative levels per tone, tested in order: quiet first, then loud
+  // only if the quiet one wasn't heard. These are NOT calibrated dB SPL —
+  // see the note on the tones step — but a fixed ~20 dB gap between them
+  // (20*log10(0.4/0.04) = 20 dB) assuming the device volume is at maximum,
+  // which is why patients are asked to max it out before this step.
+  var TONE_LEVELS = [
+    { key: "20", label: "20 dB", gain: 0.04 },
+    { key: "40", label: "40 dB", gain: 0.4 }
+  ];
+
   // ---------- State ----------
   var state = {
     qIndex: 0,
     answers: new Array(QUESTIONS.length).fill(null),
     toneIndex: 0,
-    toneResults: new Array(TONE_TRIALS.length).fill(null),
+    toneAttempt: 0, // 0 = testing the quiet (20 dB) level, 1 = the loud (40 dB) level
+    toneResults: new Array(TONE_TRIALS.length).fill(null), // each becomes "20" | "40" | "none"
     audioCtx: null,
     playing: false
   };
@@ -592,10 +604,10 @@
     return state.audioCtx;
   }
 
-  function playTone(freq, ear, onDone){
+  function playTone(freq, ear, gain, onDone){
     var ctx = ensureAudio();
     var osc = ctx.createOscillator();
-    var gain = ctx.createGain();
+    var gainNode = ctx.createGain();
     var pan = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
 
     osc.type = "sine";
@@ -604,14 +616,14 @@
 
     var now = ctx.currentTime;
     var dur = 1.3;
-    gain.gain.setValueAtTime(0.0001, now);
-    gain.gain.exponentialRampToValueAtTime(0.16, now + 0.08);
-    gain.gain.setValueAtTime(0.16, now + dur - 0.15);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + dur);
+    gainNode.gain.setValueAtTime(0.0001, now);
+    gainNode.gain.exponentialRampToValueAtTime(gain, now + 0.08);
+    gainNode.gain.setValueAtTime(gain, now + dur - 0.15);
+    gainNode.gain.exponentialRampToValueAtTime(0.0001, now + dur);
 
-    osc.connect(gain);
-    if (pan){ gain.connect(pan); pan.connect(ctx.destination); }
-    else { gain.connect(ctx.destination); }
+    osc.connect(gainNode);
+    if (pan){ gainNode.connect(pan); pan.connect(ctx.destination); }
+    else { gainNode.connect(ctx.destination); }
 
     osc.start(now);
     osc.stop(now + dur);
@@ -631,13 +643,14 @@
 
   function renderToneTrial(){
     var t = TONE_TRIALS[state.toneIndex];
-    $("earBadge").textContent = "OÍDO " + (t.ear === "left" ? "IZQUIERDO" : "DERECHO");
+    var level = TONE_LEVELS[state.toneAttempt];
+    $("earBadge").textContent = "OÍDO " + (t.ear === "left" ? "IZQUIERDO" : "DERECHO") + " · NIVEL " + level.label;
     $("toneFreq").innerHTML = t.freq + ' <span>Hz</span>';
     $("toneAnswers").style.visibility = "hidden";
     var btn = $("btnPlayTone");
     btn.textContent = "▶ Reproducir";
     btn.classList.remove("playing");
-    btn.disabled = false;
+    btn.disabled = !$("chkHeadphones").checked;
     renderToneDots();
   }
 
@@ -649,7 +662,8 @@
     btn.textContent = "Sonando…";
     btn.disabled = true;
     var t = TONE_TRIALS[state.toneIndex];
-    playTone(t.freq, t.ear, function(){
+    var level = TONE_LEVELS[state.toneAttempt];
+    playTone(t.freq, t.ear, level.gain, function(){
       state.playing = false;
       btn.classList.remove("playing");
       btn.textContent = "▶ Repetir";
@@ -658,13 +672,30 @@
     });
   });
 
-  function answerTone(heard){
-    state.toneResults[state.toneIndex] = heard;
+  function advanceTrial(){
+    state.toneAttempt = 0;
     if (state.toneIndex < TONE_TRIALS.length - 1){
       state.toneIndex++;
       renderToneTrial();
     } else {
       showResults();
+    }
+  }
+
+  function answerTone(heard){
+    if (heard){
+      // Heard it — record the level it was heard at and move on.
+      state.toneResults[state.toneIndex] = TONE_LEVELS[state.toneAttempt].key;
+      advanceTrial();
+    } else if (state.toneAttempt === 0){
+      // Didn't hear the quiet (20 dB) tone — try the loud (40 dB) one
+      // at the same frequency/ear before giving up on this trial.
+      state.toneAttempt = 1;
+      renderToneTrial();
+    } else {
+      // Didn't hear it even at the loud (40 dB) level.
+      state.toneResults[state.toneIndex] = "none";
+      advanceTrial();
     }
   }
   $("btnHeard").addEventListener("click", function(){ answerTone(true); });
@@ -675,25 +706,32 @@
     return state.answers.reduce(function(a,b){ return a + (b||0); }, 0);
   }
   function toneMisses(){
-    var weighted = 0, raw = 0;
-    state.toneResults.forEach(function(heard, i){
-      if (heard === false){
+    // level: "20" (heard quiet, best) -> 0 points
+    //        "40" (heard only loud)   -> weighted 1x/1.5x
+    //        "none" (heard neither)   -> weighted 2x/1.5x
+    var weighted = 0, raw = 0, loudOnly = 0;
+    state.toneResults.forEach(function(level, i){
+      var mult = TONE_TRIALS[i].freq >= 4000 ? 1.5 : 1;
+      if (level === "none"){
         raw++;
-        weighted += TONE_TRIALS[i].freq >= 4000 ? 1.5 : 1;
+        weighted += 2 * mult;
+      } else if (level === "40"){
+        loudOnly++;
+        weighted += 1 * mult;
       }
     });
-    return {raw: raw, weighted: weighted};
+    return { raw: raw, weighted: weighted, loudOnly: loudOnly };
   }
   function classify(){
     var sym = symptomScore();
     var tones = toneMisses();
 
     var symCat = sym <= 6 ? 0 : (sym <= 15 ? 1 : 2);
-    var toneCat = tones.weighted <= 1.5 ? 0 : (tones.weighted <= 4 ? 1 : 2);
+    var toneCat = tones.weighted <= 3 ? 0 : (tones.weighted <= 8 ? 1 : 2);
     var cat = Math.max(symCat, toneCat);
 
     return {
-      sym: sym, toneRaw: tones.raw, cat: cat,
+      sym: sym, toneRaw: tones.raw, loudOnly: tones.loudOnly, cat: cat,
       label: ["Bajo riesgo","Riesgo moderado","Riesgo alto"][cat]
     };
   }
@@ -721,6 +759,9 @@
 
     $("symScoreN").textContent = r.sym + "/30";
     $("toneScoreN").textContent = r.toneRaw + "/8";
+    $("toneLoudNote").textContent = r.loudOnly > 0
+      ? "+" + r.loudOnly + " solo se escucharon al subir a 40 dB"
+      : "";
 
     var recs = [
       "Aun con bajo riesgo, una valoración preventiva ayuda a establecer una línea base de tu audición, especialmente si tienes exposición frecuente a ruido.",
@@ -826,6 +867,7 @@
     state.qIndex = 0;
     state.answers = new Array(QUESTIONS.length).fill(null);
     state.toneIndex = 0;
+    state.toneAttempt = 0;
     state.toneResults = new Array(TONE_TRIALS.length).fill(null);
     $("chkAge").checked = false;
     $("chkData").checked = false;
