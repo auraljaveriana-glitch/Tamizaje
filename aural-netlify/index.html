@@ -186,6 +186,10 @@
   .hint{font-size:12.5px; color:var(--ink-soft); margin-top:5px;}
 
   .check{display:flex; gap:10px; align-items:flex-start; padding:12px 0; font-size:14px; color:var(--ink-soft);}
+  .headphone-note{
+    display:flex; gap:10px; align-items:flex-start; background:var(--warn-tint); color:var(--warn);
+    border-radius:12px; padding:13px 16px; font-size:13.5px; line-height:1.5; margin-top:4px;
+  }
   .check input{margin-top:3px; flex:none; width:16px; height:16px; accent-color:var(--teal);}
 
   /* Questionnaire */
@@ -220,6 +224,7 @@
     box-shadow:0 0 0 0 rgba(31,111,99,0.45); transition:box-shadow .2s ease, transform .12s ease;
   }
   .tone-btn:active{transform:scale(0.97);}
+  .tone-btn:disabled{opacity:0.4; cursor:not-allowed; box-shadow:none;}
   .tone-btn.playing{animation:pulse 1.1s ease-in-out infinite;}
   @keyframes pulse{
     0%{box-shadow:0 0 0 0 rgba(31,111,99,0.45);}
@@ -366,10 +371,20 @@
       <div class="eyebrow">Parte 2 · Prueba de tonos</div>
       <h2>Sonidos por oído</h2>
       <p class="lead">Vas a escuchar tonos breves. Presiona reproducir y responde si lo escuchaste, aunque sea débil.</p>
+
+      <div class="headphone-note">
+        <span>🎧</span>
+        <span><strong>Ponte tus audífonos antes de continuar.</strong> Cada tono se envía a un solo oído — sin audífonos no vas a poder distinguirlos bien y el resultado no será confiable.</span>
+      </div>
+      <label class="check">
+        <input type="checkbox" id="chkHeadphones">
+        Ya tengo mis audífonos puestos
+      </label>
+
       <div class="tone-stage">
         <span class="ear-badge" id="earBadge">OÍDO IZQUIERDO</span>
         <div class="tone-freq" id="toneFreq">1000 <span>Hz</span></div>
-        <button class="tone-btn" id="btnPlayTone">▶ Reproducir</button>
+        <button class="tone-btn" id="btnPlayTone" disabled>▶ Reproducir</button>
         <div class="tone-answers" id="toneAnswers" style="visibility:hidden;">
           <button class="btn btn-outline" id="btnHeard">Sí lo escuché</button>
           <button class="btn btn-outline" id="btnNotHeard">No lo escuché</button>
@@ -506,6 +521,12 @@
   }
   $("chkAge").addEventListener("change", checkStartEnabled);
   $("chkData").addEventListener("change", checkStartEnabled);
+
+  function checkHeadphonesEnabled(){
+    $("btnPlayTone").disabled = !$("chkHeadphones").checked;
+  }
+  $("chkHeadphones").addEventListener("change", checkHeadphonesEnabled);
+
   $("btnStart").addEventListener("click", function(){
     goToStep("datos");
   });
@@ -759,9 +780,9 @@
     $("btnWhatsapp").href = "https://wa.me/" + CONFIG.whatsappNumber + "?text=" + encodeURIComponent(msg);
     $("btnEmail").href = "mailto:" + CONFIG.email + "?subject=" + encodeURIComponent("Tamizaje auditivo - " + name) + "&body=" + encodeURIComponent(msg);
 
-    // Data used to save this lead to the Aural backend (Panel Aural) once
-    // the person actually chooses to send it — see sendToBackend() below.
-    contactSubmitted = false;
+    // Save this lead to the Aural backend (Panel Aural) as soon as the
+    // result is shown — NOT gated on clicking WhatsApp/correo, so it's
+    // captured even if the person never taps either button.
     lastPayload = {
       nombre: $("cName").value.trim(),
       edad: $("cAge").value.trim(),
@@ -772,9 +793,10 @@
       tonos: String(r.toneRaw),
       riesgo: r.label
     };
+    sendToBackend("Formulario web");
   }
 
-  // ---------- Save the lead to the backend when the person sends it ----------
+  // ---------- Save the lead to the backend ----------
   var contactSubmitted = false;
   var lastPayload = null;
 
@@ -794,8 +816,10 @@
     } catch (e) { /* best effort — never block the WhatsApp/email action */ }
   }
 
-  $("btnWhatsapp").addEventListener("click", function(){ sendToBackend("WhatsApp"); });
-  $("btnEmail").addEventListener("click", function(){ sendToBackend("Correo"); });
+  // WhatsApp/correo remain available so the person can also reach out
+  // directly right away (their href already points to wa.me/mailto) —
+  // the record is already saved to the backend by this point, no extra
+  // handler needed on these clicks.
 
   // ---------- Restart ----------
   $("btnRestart").addEventListener("click", function(){
@@ -806,6 +830,8 @@
     $("chkAge").checked = false;
     $("chkData").checked = false;
     checkStartEnabled();
+    $("chkHeadphones").checked = false;
+    checkHeadphonesEnabled();
     ["cName","cAge","cPhone","cEmail","cCity"].forEach(function(id){ $(id).value = ""; });
     checkDatosEnabled();
     contactSubmitted = false;
