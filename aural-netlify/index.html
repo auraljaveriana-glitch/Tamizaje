@@ -5,6 +5,28 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Tamizaje Auditivo Aural</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Arimo:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap">
+
+<!-- Meta Pixel Code — reemplaza TU_PIXEL_ID_AQUI por el ID real de tu píxel
+     (Administrador de eventos de Meta > Orígenes de datos > tu píxel > Detalles).
+     El evento "Lead" se dispara automáticamente cuando alguien completa el
+     tamizaje y su contacto se guarda (ver sendToBackend() más abajo). -->
+<script>
+!function(f,b,e,v,n,t,s)
+{if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+n.queue=[];t=b.createElement(e);t.async=!0;
+t.src=v;s=b.getElementsByTagName(e)[0];
+s.parentNode.insertBefore(t,s)}(window, document,'script',
+'https://connect.facebook.net/en_US/fbevents.js');
+fbq('init', 'TU_PIXEL_ID_AQUI');
+fbq('track', 'PageView');
+</script>
+<noscript><img height="1" width="1" style="display:none"
+src="https://www.facebook.com/tr?id=TU_PIXEL_ID_AQUI&ev=PageView&noscript=1"
+/></noscript>
+<!-- End Meta Pixel Code -->
+
 <style>
   :root{
     --bg:#F1F2F2;
@@ -345,8 +367,8 @@
         <input type="tel" id="cPhone" placeholder="Ej. 3001234567">
       </div>
       <div class="field">
-        <label for="cEmail">Correo (opcional)</label>
-        <input type="email" id="cEmail" placeholder="tu@correo.com">
+        <label for="cEmail">Correo electrónico</label>
+        <input type="email" id="cEmail" placeholder="tu@correo.com" required>
       </div>
       <div class="field">
         <label for="cCity">Ciudad (opcional)</label>
@@ -356,7 +378,7 @@
       <div class="btn-row">
         <button class="btn btn-primary btn-block" id="btnContinueDatos" disabled>Continuar al cuestionario</button>
       </div>
-      <p class="hint" id="datosHint" style="margin-top:10px;">Completa nombre, edad y teléfono para continuar.</p>
+      <p class="hint" id="datosHint" style="margin-top:10px;">Completa nombre, edad, teléfono y un correo válido para continuar.</p>
     </section>
 
     <!-- STEP 2: questionnaire -->
@@ -545,16 +567,18 @@
   });
 
   // ---------- Contact data (collected upfront) ----------
+  var EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   function checkDatosEnabled(){
     var ok = $("cName").value.trim().length > 1 &&
              $("cAge").value.trim().length > 0 &&
-             $("cPhone").value.trim().length >= 7;
+             $("cPhone").value.trim().length >= 7 &&
+             EMAIL_RE.test($("cEmail").value.trim());
     $("btnContinueDatos").disabled = !ok;
     $("datosHint").textContent = ok
       ? "Puedes continuar."
-      : "Completa nombre, edad y teléfono para continuar.";
+      : "Completa nombre, edad, teléfono y un correo válido para continuar.";
   }
-  ["cName","cAge","cPhone"].forEach(function(id){
+  ["cName","cAge","cPhone","cEmail"].forEach(function(id){
     $(id).addEventListener("input", checkDatosEnabled);
   });
   $("btnContinueDatos").addEventListener("click", function(){
@@ -856,6 +880,12 @@
         fetch("/api/submit", {method:"POST", headers:{"Content-Type":"application/json"}, body: body, keepalive:true});
       }
     } catch (e) { /* best effort — never block the WhatsApp/email action */ }
+
+    // Meta Pixel: cuenta este tamizaje completado como un Lead para poder
+    // optimizar y medir la pauta. No incluye datos personales, solo el evento.
+    try {
+      if (typeof fbq === "function") fbq("track", "Lead");
+    } catch (e) { /* best effort */ }
   }
 
   // WhatsApp/correo remain available so the person can also reach out
