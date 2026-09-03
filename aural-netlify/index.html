@@ -582,6 +582,7 @@ src="https://www.facebook.com/tr?id=TU_PIXEL_ID_AQUI&ev=PageView&noscript=1"
     $(id).addEventListener("input", checkDatosEnabled);
   });
   $("btnContinueDatos").addEventListener("click", function(){
+    submitInitialLead();
     goToStep("quiz");
     renderQuestion();
   });
@@ -859,25 +860,75 @@ src="https://www.facebook.com/tr?id=TU_PIXEL_ID_AQUI&ev=PageView&noscript=1"
       tonos: String(r.toneRaw),
       riesgo: r.label
     };
-    sendToBackend("Formulario web");
+    finalizeLead();
   }
 
   // ---------- Save the lead to the backend ----------
+  // The lead is captured in two steps so Aural gets the contact even if
+  // the person never finishes the exam:
+  //   1) submitInitialLead() — fired the moment step 1 (contact data) is
+  //      done, BEFORE the questionnaire/tone test. Creates the record.
+  //   2) finalizeLead() — fired when the results screen is shown. Fills
+  //      in the exam results on that same record via /api/complete.
+  // If step 1 didn't manage to save (e.g. a network hiccup), finalizeLead()
+  // falls back to creating the full record itself so nothing is lost.
+  var leadId = null;
+  var leadSubmitAttempted = false;
   var contactSubmitted = false;
   var lastPayload = null;
 
-  function sendToBackend(canal){
+  function submitInitialLead(){
+    if (leadSubmitAttempted) return;
+    leadSubmitAttempted = true;
+    var payload = {
+      nombre: $("cName").value.trim(),
+      edad: $("cAge").value.trim(),
+      telefono: $("cPhone").value.trim(),
+      correo: $("cEmail").value.trim(),
+      ciudad: $("cCity").value.trim(),
+      canal: "Datos (sin terminar)"
+    };
+    try {
+      fetch("/api/submit", {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify(payload),
+        keepalive: true
+      }).then(function(res){ return res.json(); }).then(function(data){
+        if (data && data.id) leadId = data.id;
+      }).catch(function(){ /* best effort */ });
+    } catch (e) { /* best effort */ }
+  }
+
+  function finalizeLead(){
     if (contactSubmitted || !lastPayload) return;
     contactSubmitted = true;
-    var payload = {};
-    for (var k in lastPayload) payload[k] = lastPayload[k];
-    payload.canal = canal;
     try {
-      var body = JSON.stringify(payload);
-      if (navigator.sendBeacon){
-        navigator.sendBeacon("/api/submit", new Blob([body], {type: "application/json"}));
+      if (leadId){
+        // Fill in the exam results on the record submitInitialLead() made.
+        var body = JSON.stringify({
+          id: leadId,
+          sintomas: lastPayload.sintomas,
+          tonos: lastPayload.tonos,
+          riesgo: lastPayload.riesgo,
+          canal: "Formulario web (completo)"
+        });
+        if (navigator.sendBeacon){
+          navigator.sendBeacon("/api/complete", new Blob([body], {type: "application/json"}));
+        } else {
+          fetch("/api/complete", {method:"POST", headers:{"Content-Type":"application/json"}, body: body, keepalive:true});
+        }
       } else {
-        fetch("/api/submit", {method:"POST", headers:{"Content-Type":"application/json"}, body: body, keepalive:true});
+        // Step 1 never made it to the backend — save the full record now.
+        var payload = {};
+        for (var k in lastPayload) payload[k] = lastPayload[k];
+        payload.canal = "Formulario web";
+        var body2 = JSON.stringify(payload);
+        if (navigator.sendBeacon){
+          navigator.sendBeacon("/api/submit", new Blob([body2], {type: "application/json"}));
+        } else {
+          fetch("/api/submit", {method:"POST", headers:{"Content-Type":"application/json"}, body: body2, keepalive:true});
+        }
       }
     } catch (e) { /* best effort — never block the WhatsApp/email action */ }
 
@@ -907,6 +958,8 @@ src="https://www.facebook.com/tr?id=TU_PIXEL_ID_AQUI&ev=PageView&noscript=1"
     checkHeadphonesEnabled();
     ["cName","cAge","cPhone","cEmail","cCity"].forEach(function(id){ $(id).value = ""; });
     checkDatosEnabled();
+    leadId = null;
+    leadSubmitAttempted = false;
     contactSubmitted = false;
     lastPayload = null;
     goToStep("landing");
