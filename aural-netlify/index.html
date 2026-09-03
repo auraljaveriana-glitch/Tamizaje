@@ -607,6 +607,11 @@ src="https://www.facebook.com/tr?id=1385054016428664&ev=PageView&noscript=1"
             state.qIndex++;
             renderQuestion();
           } else {
+            if (typeof fbq === "function") {
+              fbq('trackCustom', 'CuestionarioCompletado', {
+                content_name: 'Tamizaje Auditivo Aural'
+              });
+            }
             goToStep("tones");
             renderToneDots();
             renderToneTrial();
@@ -761,6 +766,11 @@ src="https://www.facebook.com/tr?id=1385054016428664&ev=PageView&noscript=1"
 
   // ---------- Results ----------
   function showResults(){
+    if (typeof fbq === "function") {
+      fbq('trackCustom', 'PruebaTonosCompletada', {
+        content_name: 'Tamizaje Auditivo Aural'
+      });
+    }
     var r = classify();
     var badgeClass = ["badge-ok","badge-warn","badge-danger"][r.cat];
     var badgeText = ["✓ " + r.label, "△ " + r.label, "▲ " + r.label][r.cat];
@@ -877,6 +887,12 @@ src="https://www.facebook.com/tr?id=1385054016428664&ev=PageView&noscript=1"
   function submitInitialLead(){
     if (leadSubmitAttempted) return;
     leadSubmitAttempted = true;
+    if (typeof fbq === "function") {
+      fbq('track', 'Lead', {
+        content_name: 'Tamizaje Auditivo Aural',
+        content_category: 'audiologia'
+      });
+    }
     var payload = {
       nombre: $("cName").value.trim(),
       edad: $("cAge").value.trim(),
@@ -929,12 +945,28 @@ src="https://www.facebook.com/tr?id=1385054016428664&ev=PageView&noscript=1"
       }
     } catch (e) { /* best effort — never block the WhatsApp/email action */ }
 
-    // Meta Pixel: cuenta este tamizaje completado como un Lead para poder
-    // optimizar y medir la pauta. No incluye datos personales, solo el evento.
+    // Meta Pixel: marca el tamizaje completo (ya se disparó 'Lead' antes,
+    // al capturar el contacto en submitInitialLead()). No incluye datos
+    // personales, solo el evento y el nivel de riesgo.
     try {
-      if (typeof fbq === "function") fbq("track", "Lead");
+      if (typeof fbq === "function") {
+        fbq('track', 'CompleteRegistration', {
+          content_name: 'Tamizaje Auditivo Aural',
+          status: true,
+          risk_level: lastPayload ? lastPayload.riesgo : undefined
+        });
+      }
     } catch (e) { /* best effort */ }
   }
+
+  // Meta Pixel: 'Contact' al hacer clic en enviar por WhatsApp o correo —
+  // la señal de conversión de mayor calidad del embudo.
+  $("btnWhatsapp").addEventListener("click", function(){
+    if (typeof fbq === "function") fbq('track', 'Contact', { contact_method: 'whatsapp' });
+  });
+  $("btnEmail").addEventListener("click", function(){
+    if (typeof fbq === "function") fbq('track', 'Contact', { contact_method: 'email' });
+  });
 
   // WhatsApp/correo remain available so the person can also reach out
   // directly right away (their href already points to wa.me/mailto) —
