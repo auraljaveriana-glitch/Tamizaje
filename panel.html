@@ -190,7 +190,7 @@
       <div class="field"><label for="fCanal">Canal</label>
         <select id="fCanal"><option>WhatsApp</option><option>Correo</option><option>Llamada</option><option>Presencial</option></select>
       </div>
-      <div class="field"><label for="fSym">Puntaje s&iacute;ntomas (0-9)</label><input type="number" id="fSym" min="0" max="9"></div>
+      <div class="field"><label for="fSym">Puntaje s&iacute;ntomas (0-30)</label><input type="number" id="fSym" min="0" max="30"></div>
       <div class="field"><label for="fTone">Tonos no percibidos (0-8)</label><input type="number" id="fTone" min="0" max="8"></div>
       <div class="field"><label for="fRisk">Clasificaci&oacute;n de riesgo</label>
         <select id="fRisk"><option>Riesgo alto</option><option>Riesgo moderado</option><option>Bajo riesgo</option></select>
@@ -376,7 +376,7 @@
         '<td class="num">'+escapeHtml(c.telefono)+'</td>' +
         '<td>'+escapeHtml(c.correo)+'</td>' +
         '<td><span class="badge '+riskBadgeClass(c.riesgo)+'">'+c.riesgo+'</span></td>' +
-        '<td class="num">'+escapeHtml(c.sintomas)+'/9</td>' +
+        '<td class="num">'+escapeHtml(c.sintomas)+'/30</td>' +
         '<td class="num">'+escapeHtml(c.tonos)+'/8</td>' +
         '<td>'+escapeHtml(c.canal)+'</td>' +
         '<td><select class="row-select" data-field="estado">'+estadoOpts+'</select></td>' +
@@ -494,7 +494,7 @@
   // ---------- Export CSV (real download — this is a normal website now) ----------
   $("btnExport").addEventListener("click", function(){
     var cols = ["fecha","nombre","edad","telefono","correo","ciudad","riesgo","sintomas","tonos","canal","estado","notas"];
-    var header = ["Fecha","Nombre","Edad","Telefono","Correo","Ciudad","Riesgo","Sintomas_0_9","Tonos_no_percibidos_0_8","Canal","Estado","Notas"];
+    var header = ["Fecha","Nombre","Edad","Telefono","Correo","Ciudad","Riesgo","Sintomas_0_30","Tonos_no_percibidos_0_8","Canal","Estado","Notas"];
     var rows = visibleContacts().map(function(c){
       return cols.map(function(k){
         var v = (c[k] == null ? "" : String(c[k])).replace(/"/g,'""');

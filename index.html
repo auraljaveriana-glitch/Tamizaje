@@ -376,14 +376,22 @@ src="https://www.facebook.com/tr?id=TU_PIXEL_ID_AQUI&ev=PageView&noscript=1"
       </div>
 
       <div class="btn-row">
-        <button class="btn btn-primary btn-block" id="btnContinueDatos" disabled>Continuar a la prueba de sonido</button>
+        <button class="btn btn-primary btn-block" id="btnContinueDatos" disabled>Continuar al cuestionario</button>
       </div>
       <p class="hint" id="datosHint" style="margin-top:10px;">Completa nombre, edad, teléfono y un correo válido para continuar.</p>
     </section>
 
+    <!-- STEP 2: questionnaire -->
+    <section class="step" data-step="quiz">
+      <div class="eyebrow">Parte 1 · Cuestionario</div>
+      <div class="q-count mono" id="qCount">Pregunta 1 de 10</div>
+      <div class="q-text" id="qText"></div>
+      <div class="opts" id="qOpts"></div>
+    </section>
+
     <!-- STEP 2: tone test -->
     <section class="step" data-step="tones">
-      <div class="eyebrow">Parte 1 · Prueba de tonos</div>
+      <div class="eyebrow">Parte 2 · Prueba de tonos</div>
       <h2>Sonidos por oído</h2>
       <p class="lead">Vas a escuchar tonos breves. Primero uno suave — si no lo escuchas, se reproduce uno más fuerte en la misma frecuencia y oído. Presiona reproducir y responde con honestidad.</p>
 
@@ -408,15 +416,7 @@ src="https://www.facebook.com/tr?id=TU_PIXEL_ID_AQUI&ev=PageView&noscript=1"
       </div>
     </section>
 
-    <!-- STEP 3: questionnaire -->
-    <section class="step" data-step="quiz">
-      <div class="eyebrow">Parte 2 · Cuestionario</div>
-      <div class="q-count mono" id="qCount">Pregunta 1 de 3</div>
-      <div class="q-text" id="qText"></div>
-      <div class="opts" id="qOpts"></div>
-    </section>
-
-    <!-- STEP 4: results -->
+    <!-- STEP 3: results -->
     <section class="step" data-step="results">
       <div class="eyebrow">Resultado</div>
       <div id="resultBadge"></div>
@@ -426,7 +426,7 @@ src="https://www.facebook.com/tr?id=TU_PIXEL_ID_AQUI&ev=PageView&noscript=1"
       <div class="score-grid">
         <div class="score-tile">
           <div class="n mono" id="symScoreN"></div>
-          <div class="l">Puntaje de síntomas (de 9)</div>
+          <div class="l">Puntaje de síntomas (de 30)</div>
         </div>
         <div class="score-tile">
           <div class="n mono" id="toneScoreN"></div>
@@ -480,7 +480,14 @@ src="https://www.facebook.com/tr?id=TU_PIXEL_ID_AQUI&ev=PageView&noscript=1"
   var QUESTIONS = [
     "¿Tienes dificultad para entender una conversación cuando hay ruido de fondo (restaurante, calle, reunión)?",
     "¿Subes el volumen del televisor o la música más que otras personas a tu alrededor?",
-    "¿Le pides a otras personas que repitan lo que dijeron?"
+    "¿Le pides a otras personas que repitan lo que dijeron?",
+    "¿Se te dificulta entender llamadas telefónicas?",
+    "¿Escuchas pitos, zumbidos o silbidos en uno o ambos oídos?",
+    "¿Se te dificulta entender voces agudas, como las de niños o mujeres?",
+    "¿Se te ha pasado un timbre, una alarma o que te llamen por tu nombre?",
+    "¿Evitas reuniones sociales o te sientes aislado por dificultad para seguir conversaciones?",
+    "¿Algún familiar o persona cercana te ha comentado que no escuchas bien?",
+    "¿Has estado expuesto por años a ruido fuerte (maquinaria, música alta, conciertos, disparos)?"
   ];
   var OPTS = [
     {label:"Nunca", value:0},
@@ -516,7 +523,7 @@ src="https://www.facebook.com/tr?id=TU_PIXEL_ID_AQUI&ev=PageView&noscript=1"
     playing: false
   };
 
-  var STEP_ORDER = ["landing","datos","tones","quiz","results"];
+  var STEP_ORDER = ["landing","datos","quiz","tones","results"];
 
   // ---------- Helpers ----------
   function $(id){ return document.getElementById(id); }
@@ -576,9 +583,8 @@ src="https://www.facebook.com/tr?id=TU_PIXEL_ID_AQUI&ev=PageView&noscript=1"
   });
   $("btnContinueDatos").addEventListener("click", function(){
     submitInitialLead();
-    goToStep("tones");
-    renderToneDots();
-    renderToneTrial();
+    goToStep("quiz");
+    renderQuestion();
   });
   $("btnEditDatos").addEventListener("click", function(){
     goToStep("datos");
@@ -604,7 +610,9 @@ src="https://www.facebook.com/tr?id=TU_PIXEL_ID_AQUI&ev=PageView&noscript=1"
             state.qIndex++;
             renderQuestion();
           } else {
-            showResults();
+            goToStep("tones");
+            renderToneDots();
+            renderToneTrial();
           }
         }, 180);
       });
@@ -696,9 +704,7 @@ src="https://www.facebook.com/tr?id=TU_PIXEL_ID_AQUI&ev=PageView&noscript=1"
       state.toneIndex++;
       renderToneTrial();
     } else {
-      state.qIndex = 0;
-      goToStep("quiz");
-      renderQuestion();
+      showResults();
     }
   }
 
@@ -746,7 +752,7 @@ src="https://www.facebook.com/tr?id=TU_PIXEL_ID_AQUI&ev=PageView&noscript=1"
     var sym = symptomScore();
     var tones = toneMisses();
 
-    var symCat = sym <= 2 ? 0 : (sym <= 5 ? 1 : 2);
+    var symCat = sym <= 6 ? 0 : (sym <= 15 ? 1 : 2);
     var toneCat = tones.weighted <= 3 ? 0 : (tones.weighted <= 8 ? 1 : 2);
     var cat = Math.max(symCat, toneCat);
 
@@ -777,7 +783,7 @@ src="https://www.facebook.com/tr?id=TU_PIXEL_ID_AQUI&ev=PageView&noscript=1"
     $("resultTitle").textContent = titles[r.cat];
     $("resultLead").textContent = leads[r.cat];
 
-    $("symScoreN").textContent = r.sym + "/9";
+    $("symScoreN").textContent = r.sym + "/30";
     $("toneScoreN").textContent = r.toneRaw + "/8";
     $("toneLoudNote").textContent = r.loudOnly > 0
       ? "+" + r.loudOnly + " solo se escucharon al subir a 40 dB"
