@@ -1,0 +1,9 @@
+{
+  "name": "aural-tamizaje-auditivo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Tamizaje auditivo de Aural Centros Auditivos + panel privado de contactos, con Netlify Functions y Netlify Blobs.",
+  "dependencies": {
+    "@netlify/blobs": "^11.0.2"
+  }
+}
